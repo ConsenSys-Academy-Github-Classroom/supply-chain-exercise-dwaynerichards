@@ -22,10 +22,10 @@ contract SupplyChain {
         Recieved
     }
 
-    event LogForSale(uint256 sku);
-    event LogSold(uint256 sku);
-    event LogShipped(uint256 sku);
-    event LogRecieved(uint256 sku);
+    event LogForSale(uint256 _sku);
+    event LogSold(uint256 _sku);
+    event LogShipped(uint256 _sku);
+    event LogRecieved(uint256 _sku);
 
     modifier isOwner(address _owner) {
         require(_owner == owner, 'Not Owner');
@@ -44,10 +44,10 @@ contract SupplyChain {
     }
 
     modifier checkValue(uint256 _sku) {
+        _; //invoked after each function
         uint256 _price = items[_sku].price;
         uint256 amountToRefund = msg.value - _price;
         payable(items[_sku].buyer).transfer(amountToRefund);
-        _; //invoked after each function
     }
 
     modifier forSale(uint256 _sku) {
@@ -58,24 +58,23 @@ contract SupplyChain {
     }
 
     modifier sold(uint256 _sku) {
-        _;
         Item storage item = items[_sku];
-        item.state = State.Sold;
+        require(item.state == State.Sold, 'item not for sale');
+        _;
     }
     modifier shipped(uint256 _sku) {
-        _;
         Item storage item = items[_sku];
-        item.state = State.Shipped;
+        require(item.state == State.Shipped, 'Item not shipped');
+        _;
     }
     modifier received(uint256 _sku) {
         _;
         Item storage item = items[_sku];
         item.state = State.Recieved;
+        require(item.state == State.Recieved, 'Item not received');
     }
 
-    //every time item is added to mapping, change state to for sale
-    //
-    constructor() public {
+    constructor() {
         owner = payable(msg.sender);
     }
 
@@ -93,18 +92,6 @@ contract SupplyChain {
         success = true;
     }
 
-    // Implement this buyItem function.
-    // 1. it should be payable in order to receive refunds
-    // 2. this should transfer money to the seller,
-    // 3. set the buyer as the person who called this transaction,
-    // 4. set the state to Sold.
-    // 5. this function should use 3 modifiers to check
-    //    - if the item is for sale,
-    //    - if the buyer paid enough,
-    //    - check the value after the function is called to make
-    //      sure the buyer is refunded any excess ether sent.
-    // 6. call the event associated with this function!
-    //verify calller(address), PaidEnough(uint price), CheckValue(uint sku)=> IssuesRefund
     function buyItem(uint256 _sku)
         external
         payable
@@ -113,40 +100,47 @@ contract SupplyChain {
         checkValue(_sku)
     {
         Item storage item = items[_sku];
-        item.state = State.Sold;
         item.buyer = msg.sender;
-        //send money to seller
-        //seller is in mapping
-        //is modifier invoked before function??
-        (bool success, ) = item.seller.call{value: msg.value}('');
+        item.state = State.Sold;
+        (bool success, ) = item.seller.call{value: item.price}('');
         emit LogSold(_sku);
         require(success, 'Transaction not set');
     }
 
-    // 1. Add modifiers to check:
-    //    - the item is sold already
-    //    - the person calling this function is the seller.
-    // 2. Change the state of the item to shipped.
-    // 3. call the event associated with this function!
-    function shipItem(uint256 sku) public {}
+    function shipItem(uint256 _sku) external sold(_sku) verifyCaller(items[_sku].buyer) {
+        Item storage item = items[_sku];
+        item.state = State.Shipped;
+        emit LogShipped(_sku);
+        require(item.state == State.Shipped, 'Item not shipped');
+    }
 
-    // 1. Add modifiers to check
-    //    - the item is shipped already
-    //    - the person calling this function is the buyer.
-    // 2. Change the state of the item to received.
-    // 3. Call the event associated with this function!
-    function receiveItem(uint256 sku) public {}
+    function receiveItem(uint256 _sku)
+        external
+        shipped(_sku)
+        verifyCaller(items[_sku].buyer)
+        received(_sku)
+    {
+        emit LogRecieved(_sku);
+    }
 
-    // Uncomment the following code block. it is needed to run tests
-    /* function fetchItem(uint _sku) public view */
-    /*   returns (string memory name, uint sku, uint price, uint state, address seller, address buyer) */
-    /* { */
-    /*   name = items[_sku].name; */
-    /*   sku = items[_sku].sku; */
-    /*   price = items[_sku].price; */
-    /*   state = uint(items[_sku].state); */
-    /*   seller = items[_sku].seller; */
-    /*   buyer = items[_sku].buyer; */
-    /*   return (name, sku, price, state, seller, buyer); */
-    /* } */
+    function fetchItem(uint256 _sku)
+        public
+        view
+        returns (
+            string memory name,
+            uint256 sku,
+            uint256 price,
+            uint256 state,
+            address seller,
+            address buyer
+        )
+    {
+        name = items[_sku].name;
+        sku = items[_sku].sku;
+        price = items[_sku].price;
+        state = uint256(items[_sku].state);
+        seller = items[_sku].seller;
+        buyer = items[_sku].buyer;
+        return (name, sku, price, state, seller, buyer);
+    }
 }
