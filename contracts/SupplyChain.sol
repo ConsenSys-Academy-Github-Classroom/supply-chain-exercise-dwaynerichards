@@ -4,6 +4,15 @@ pragma solidity >=0.5.16 <0.9.0;
 contract SupplyChain {
     address public owner;
     uint256 public skuCount;
+
+    mapping(uint256 => Item) public items;
+
+    enum State {
+        ForSale,
+        Sold,
+        Shipped,
+        Received
+    }
     struct Item {
         string name;
         uint256 sku;
@@ -13,19 +22,10 @@ contract SupplyChain {
         address buyer;
     }
 
-    mapping(uint256 => Item) public items;
-
-    enum State {
-        ForSale,
-        Sold,
-        Shipped,
-        Recieved
-    }
-
     event LogForSale(uint256 _sku);
     event LogSold(uint256 _sku);
     event LogShipped(uint256 _sku);
-    event LogRecieved(uint256 _sku);
+    event LogReceived(uint256 _sku);
 
     modifier isOwner(address _owner) {
         require(_owner == owner, 'Not Owner');
@@ -70,8 +70,8 @@ contract SupplyChain {
     modifier received(uint256 _sku) {
         _;
         Item storage item = items[_sku];
-        item.state = State.Recieved;
-        require(item.state == State.Recieved, 'Item not received');
+        item.state = State.Received;
+        require(item.state == State.Received, 'Item not received');
     }
 
     constructor() {
@@ -120,7 +120,7 @@ contract SupplyChain {
         verifyCaller(items[_sku].buyer)
         received(_sku)
     {
-        emit LogRecieved(_sku);
+        emit LogReceived(_sku);
     }
 
     function fetchItem(uint256 _sku)
